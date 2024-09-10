@@ -1,4 +1,4 @@
-import { handler } from '../../src/actions/askcoda';
+import { handler } from '../../src/actions/askCodaTable';
 
 // TODO #1: Rename xit() to it() to enable the test.
 // TODO #2: Change the test name below to match your use case.
