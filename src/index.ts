@@ -1,10 +1,10 @@
 import { PluginDefinition, setupPluginServer } from 'connery';
-import askcoda from "./actions/askcoda.js";
+import askCodaTable from "./actions/askCodaTable.js";
 
 const pluginDefinition: PluginDefinition = {
   name: 'Coda',
   description: 'Connery plugin for Coda',
-  actions: [askcoda],
+  actions: [askCodaTable],
 };
 
 const handler = await setupPluginServer(pluginDefinition);
