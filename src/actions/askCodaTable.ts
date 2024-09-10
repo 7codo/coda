@@ -4,7 +4,7 @@ import OpenAI from 'openai';
 
 const actionDefinition: ActionDefinition = {
   key: 'askCodaTable',
-  name: 'Ask Coda Table Q&A',
+  name: 'Ask Coda Table',
   description: 'This action enables users to ask questions and receive answers from a table in a Coda document with question and answer columns.',
   type: 'read',
   inputParameters: [
