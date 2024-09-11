@@ -102,8 +102,11 @@ export async function handler({ input }: ActionContext): Promise<OutputObject> {
 }
 
 function extractIdsFromUrl(url: string): { docId: string, pageName: string } {
+  console.log('Extracting IDs from URL:', url);
   const urlObj = new URL(url);
+  console.log('URL object:', urlObj);
   const pathParts = urlObj.pathname.split('/').filter(Boolean);
+  console.log('Path parts:', pathParts);
 
   if (pathParts.length < 2) {
     throw new Error('Invalid Coda URL format');
@@ -112,12 +115,22 @@ function extractIdsFromUrl(url: string): { docId: string, pageName: string } {
   let docId = '';
   let pageName = '';
 
-  // Check if the URL is in the format https://coda.io/d/_d{docId}/{pageName}
-  if (pathParts[0] === 'd' && pathParts[1].startsWith('_d')) {
-    docId = pathParts[1].slice(2);  // Remove '_d' prefix
-    pageName = pathParts[2] || '';  // Page name is the third part, if present
+  console.log('First path part:', pathParts[0]);
+  console.log('Second path part:', pathParts[1]);
+
+  if (pathParts[0] === 'd') {
+    const docIdParts = pathParts[1].split('_');
+    if (docIdParts.length > 1) {
+      docId = docIdParts[docIdParts.length - 1];  // Get the last part after splitting by '_'
+      docId = docId.startsWith('d') ? docId.slice(1) : docId;  // Remove leading 'd' if present
+      pageName = pathParts[2] || '';  // Page name is the third part, if present
+      console.log('Extracted Doc ID:', docId);
+      console.log('Extracted Page Name:', pageName);
+    } else {
+      throw new Error('Unable to extract Doc ID from the provided URL');
+    }
   } else {
-    throw new Error('Unable to extract Doc ID from the provided URL');
+    throw new Error('Invalid Coda URL format');
   }
 
   return { docId, pageName };
