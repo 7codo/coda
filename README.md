@@ -1,6 +1,15 @@
 # Coda
 
-Connery plugin for Coda
+Connery plugin for Coda. It's primary purpose is to fetch content from Coda docs.
+
+The plugin currently contains one action: `askCodaTable`:
+
+- Allows you to ask questions about the content of a Coda table.
+- For optimal performance, the table should contain two columns named 'Question' and 'Answer'.
+- If the table structure and/or naming is different, the action will fetch up to the first 10 columns and use them as a fallback.
+- Allows you to provide additional instructions for the Connery assistant on how to handle the content.
+  - This can be useful if the table contains additional information that is not part of the question and answer.
+  - It can also be used to provide more context or output formatting instructions.
 
 ## Repository structure
 

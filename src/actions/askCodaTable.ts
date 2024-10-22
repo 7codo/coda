@@ -1,11 +1,10 @@
 import { ActionDefinition, ActionContext, OutputObject } from 'connery';
 import axios from 'axios';
-import OpenAI from 'openai';
 
 const actionDefinition: ActionDefinition = {
   key: 'askCodaTable',
   name: 'Ask Coda Table',
-  description: 'This action enables users to ask questions and receive answers from a table in a Coda document with question and answer columns.',
+  description: 'This action retrieves Q&A content from a table in a Coda document.',
   type: 'read',
   inputParameters: [
     {
@@ -27,30 +26,12 @@ const actionDefinition: ActionDefinition = {
       },
     },
     {
-      key: 'openAiApiKey',
-      name: 'OpenAI API Key',
-      description: 'Your OpenAI API key without any restirctions',
+      key: 'instructions',
+      name: 'Instructions',
+      description: 'Optional instructions for the content processing.',
       type: 'string',
       validation: {
-        required: true,
-      },
-    },
-    {
-      key: 'openAiModel',
-      name: 'OpenAI Model',
-      description: 'The OpenAI model to use (e.g., gpt-4o-mini)',
-      type: 'string',
-      validation: {
-        required: true,
-      },
-    },
-    {
-      key: 'userQuestion',
-      name: 'User Question',
-      description: 'The question to be answered based on the Coda Q&A table',
-      type: 'string',
-      validation: {
-        required: true,
+        required: false,
       },
     },
   ],
@@ -59,9 +40,9 @@ const actionDefinition: ActionDefinition = {
   },
   outputParameters: [
     {
-      key: 'textResponse',
-      name: 'Text Response',
-      description: 'The answer to the user question based on the Coda Q&A table',
+      key: 'qaContent',
+      name: 'Q&A Content',
+      description: 'The Q&A content retrieved from the Coda table',
       type: 'string',
       validation: {
         required: true,
@@ -74,26 +55,17 @@ export default actionDefinition;
 
 export async function handler({ input }: ActionContext): Promise<OutputObject> {
   try {
-    // Extract Doc ID and Page Name from the provided Coda URL
     const { docId, pageName } = extractIdsFromUrl(input.codaUrl);
-
-    // Get the correct Page ID
     const pageId = await getPageId(docId, pageName, input.codaApiKey);
-
-    // Get page details
-    const pageDetails = await getPageDetails(docId, pageId, input.codaApiKey);
-
-    // Fetch table IDs
     const tableIds = await fetchTableIds(docId, pageId, input.codaApiKey);
+    let qaContent = await fetchQAContent(docId, tableIds, input.codaApiKey);
 
-    // Fetch Q&A content
-    const qaContent = await fetchQAContent(docId, tableIds, input.codaApiKey);
-
-    // Get answer from OpenAI
-    const answer = await getOpenAiAnswer(qaContent, input.userQuestion, input.openAiApiKey, input.openAiModel);
+    if (input.instructions) {
+      qaContent = `Instructions for the following content: ${input.instructions}\n\n${qaContent}`;
+    }
 
     return {
-      textResponse: answer,
+      qaContent: qaContent,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -102,11 +74,8 @@ export async function handler({ input }: ActionContext): Promise<OutputObject> {
 }
 
 function extractIdsFromUrl(url: string): { docId: string, pageName: string } {
-  console.log('Extracting IDs from URL:', url);
   const urlObj = new URL(url);
-  console.log('URL object:', urlObj);
   const pathParts = urlObj.pathname.split('/').filter(Boolean);
-  console.log('Path parts:', pathParts);
 
   if (pathParts.length < 2) {
     throw new Error('Invalid Coda URL format');
@@ -115,17 +84,12 @@ function extractIdsFromUrl(url: string): { docId: string, pageName: string } {
   let docId = '';
   let pageName = '';
 
-  console.log('First path part:', pathParts[0]);
-  console.log('Second path part:', pathParts[1]);
-
   if (pathParts[0] === 'd') {
     const docIdParts = pathParts[1].split('_');
     if (docIdParts.length > 1) {
       docId = docIdParts[docIdParts.length - 1];  // Get the last part after splitting by '_'
       docId = docId.startsWith('d') ? docId.slice(1) : docId;  // Remove leading 'd' if present
       pageName = pathParts[2] || '';  // Page name is the third part, if present
-      console.log('Extracted Doc ID:', docId);
-      console.log('Extracted Page Name:', pageName);
     } else {
       throw new Error('Unable to extract Doc ID from the provided URL');
     }
@@ -176,7 +140,6 @@ async function fetchQAContent(docId: string, tableIds: string[], apiKey: string)
   let qaContent = '';
 
   for (const tableId of tableIds) {
-    
     // Fetch column information
     const columnsUrl = `https://coda.io/apis/v1/docs/${docId}/tables/${tableId}/columns`;
     const columnsResponse = await axios.get(columnsUrl, {
@@ -193,76 +156,33 @@ async function fetchQAContent(docId: string, tableIds: string[], apiKey: string)
     const rows = rowsResponse.data.items;
 
     if (rows.length > 0) {
-      const columnNames = Object.keys(rows[0].values).map(id => columnMap.get(id) || id);
+      const columnIds = Object.keys(rows[0].values);
+      const questionColumn = columnIds.find(id => (columnMap.get(id) as string)?.toLowerCase().includes('question'));
+      const answerColumn = columnIds.find(id => (columnMap.get(id) as string)?.toLowerCase().includes('answer'));
 
-      // Try to identify question and answer columns
-      const questionColumn = Object.keys(rows[0].values).find(id => {
-        const columnName = columnMap.get(id);
-        return typeof columnName === 'string' && 
-               (columnName.toLowerCase().includes('question'));
-      });
-      const answerColumn = Object.keys(rows[0].values).find(id => {
-        const columnName = columnMap.get(id);
-        return typeof columnName === 'string' && 
-               (columnName.toLowerCase().includes('answer'));
-      });
+      const processRow = (values: string[]) => {
+        if (values.every(v => typeof v === 'string')) {
+          qaContent += values.map((v, i) => `${i === 0 ? 'Q' : 'A'}${i + 1}: ${v}`).join('\n') + '\n\n';
+        }
+      };
 
       if (questionColumn && answerColumn) {
-        for (const row of rows) {
-          const question = row.values[questionColumn];
-          const answer = row.values[answerColumn];
-          if (typeof question === 'string' && typeof answer === 'string') {
-            qaContent += `Q: ${question}\nA: ${answer}\n\n`;
-          } else {
-            console.log(`Skipped row: Invalid question or answer type`);
-          }
-        }
+        rows.forEach((row: { values: Record<string, any> }) => processRow([row.values[questionColumn], row.values[answerColumn]]));
       } else {
-        console.log('Could not identify question and answer columns. Using first two columns as fallback.');
-        const columnIds = Object.keys(rows[0].values);
-        for (const row of rows) {
-          const question = row.values[columnIds[0]];
-          const answer = row.values[columnIds[1]];
-          if (typeof question === 'string' && typeof answer === 'string') {
-            qaContent += `Q: ${question}\nA: ${answer}\n\n`;
-          } else {
-            console.log(`Skipped row: Invalid question or answer type`);
-          }
-        }
+        // Fallback to using up to first ten columns
+        rows.forEach((row: { values: Record<string, any> }) => {
+          const availableColumnIds = columnIds.slice(0, 10);
+          const values = availableColumnIds.map(id => row.values[id]);
+          processRow(values);
+        });
       }
-    } else {
-      console.log('No rows found in the table.');
+    }
+
+    // Optionally, we can add a note about empty tables or skipped rows to the qaContent
+    if (rows.length === 0) {
+      qaContent += "Note: No rows found in this table.\n\n";
     }
   }
 
   return qaContent.trim();
-}
-
-async function getOpenAiAnswer(content: string, question: string, apiKey: string, model: string): Promise<string> {
-  const openai = new OpenAI({ apiKey });
-
-  try {
-    const completion = await openai.chat.completions.create({
-      model: model,
-      messages: [
-        { role: "system", content: "You are a helpful assistant that answers questions based strictly on the provided Q&A content source document. Only use the information explicitly provided in the document to answer questions. If the answer is not available in the content, respond with: 'I don't have enough information to answer that question'. Ensure you include all relevant details and nuances from the content. Do not omit important information, such as further details or links, which should be properly formatted in your response. If the content contains links, display them clearly in your answer.For longer responses, improve readability by organizing your answers into clear paragraphs."},
-        { role: "user", content: `Q&A Content:\n${content}\n\nQuestion: ${question}` },
-      ],
-    });
-
-    return completion.choices[0]?.message?.content?.trim() ?? "No response generated";
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to get OpenAI answer: ${errorMessage}`);
-  }
-}
-
-async function getPageDetails(docId: string, pageId: string, apiKey: string): Promise<any> {
-  const url = `https://coda.io/apis/v1/docs/${docId}/pages/${pageId}`;
-  
-  const response = await axios.get(url, {
-    headers: { 'Authorization': `Bearer ${apiKey}` },
-  });
-
-  return response.data;
 }
