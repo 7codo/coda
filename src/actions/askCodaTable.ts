@@ -4,13 +4,13 @@ import axios from 'axios';
 const actionDefinition: ActionDefinition = {
   key: 'askCodaTable',
   name: 'Ask Coda Table',
-  description: 'This action retrieves Q&A content from a table in a Coda document.',
+  description: 'This action retrieves content from a table in a Coda document.',
   type: 'read',
   inputParameters: [
     {
       key: 'codaUrl',
       name: 'Coda Page URL',
-      description: 'The full URL of the Coda page containing the Q&A table',
+      description: 'The full URL of the Coda page containing the table',
       type: 'string',
       validation: {
         required: true,
@@ -28,7 +28,7 @@ const actionDefinition: ActionDefinition = {
     {
       key: 'instructions',
       name: 'Instructions',
-      description: 'Optional instructions for the content processing.',
+      description: 'Optional instructions for content processing.',
       type: 'string',
       validation: {
         required: false,
