@@ -148,38 +148,32 @@ async function fetchQAContent(docId: string, tableIds: string[], apiKey: string)
     
     const columnMap = new Map(columnsResponse.data.items.map((col: any) => [col.id, col.name as string]));
 
-    const rowsUrl = `https://coda.io/apis/v1/docs/${docId}/tables/${tableId}/rows`;
-    const rowsResponse = await axios.get(rowsUrl, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-    });
+    let nextPageToken: string | null = null;
+    do {
+      const rowsUrl: string = `https://coda.io/apis/v1/docs/${docId}/tables/${tableId}/rows?limit=100${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
+      const rowsResponse = await axios.get(rowsUrl, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+      });
 
-    const rows = rowsResponse.data.items;
+      const rows = rowsResponse.data.items;
+      nextPageToken = rowsResponse.data.nextPageToken || null;
 
-    if (rows.length > 0) {
-      const columnIds = Object.keys(rows[0].values);
-      const questionColumn = columnIds.find(id => (columnMap.get(id) as string)?.toLowerCase().includes('question'));
-      const answerColumn = columnIds.find(id => (columnMap.get(id) as string)?.toLowerCase().includes('answer'));
+      if (rows.length > 0) {
+        const columnIds = Object.keys(rows[0].values).slice(0, 10);  // Get up to first 10 column IDs
 
-      const processRow = (values: string[]) => {
-        if (values.every(v => typeof v === 'string')) {
-          qaContent += values.map((v, i) => `${i === 0 ? 'Q' : 'A'}${i + 1}: ${v}`).join('\n') + '\n\n';
-        }
-      };
-
-      if (questionColumn && answerColumn) {
-        rows.forEach((row: { values: Record<string, any> }) => processRow([row.values[questionColumn], row.values[answerColumn]]));
-      } else {
-        // Fallback to using up to first ten columns
         rows.forEach((row: { values: Record<string, any> }) => {
-          const availableColumnIds = columnIds.slice(0, 10);
-          const values = availableColumnIds.map(id => row.values[id]);
-          processRow(values);
+          const values = columnIds.map(id => {
+            const columnName = columnMap.get(id) || id;
+            const value = row.values[id];
+            return `${columnName}: ${value}`;
+          });
+          qaContent += values.join('\n') + '\n\n';
         });
       }
-    }
+    } while (nextPageToken);
 
     // Optionally, we can add a note about empty tables or skipped rows to the qaContent
-    if (rows.length === 0) {
+    if (qaContent === '') {
       qaContent += "Note: No rows found in this table.\n\n";
     }
   }
