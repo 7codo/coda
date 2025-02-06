@@ -1,6 +1,88 @@
 import { ActionDefinition, ActionContext, OutputObject } from 'connery';
 import axios from 'axios';
 
+/*
+Context, llm and Definition Types
+
+//llm
+type OpenAiFunctionSchema = {
+  name: string;
+  description: string;
+  parameters: {
+    type: 'object';
+    properties: {
+      [key: string]: {
+        type: 'string';
+        description: string;
+      };
+    };
+    required: string[];
+  };
+};
+
+
+//Context
+// At the moment we only support string parameters.
+// In the future we may support other types, such as boolean, number, etc.
+// That's why we have a separate type for parameter values.
+type InputValue = string;
+type OutputValue = string;
+
+interface InputObject {
+  [key: string]: InputValue;
+}
+
+interface OutputObject {
+  [key: string]: OutputValue;
+}
+
+interface ActionContext {
+  input: InputObject;
+}
+
+
+//Definition
+interface PluginDefinition {
+  name: string;
+  description?: string;
+  actions: ActionDefinition[];
+}
+
+interface ActionDefinition {
+  key: string;
+  name: string;
+  description?: string;
+  type: 'create' | 'read' | 'update' | 'delete';
+  inputParameters: InputParameterDefinition[];
+  outputParameters: OutputParameterDefinition[];
+  operation: OperationDefinition;
+}
+
+interface InputParameterDefinition {
+  key: string;
+  name: string;
+  description?: string;
+  type: 'string';
+  validation?: ValidationDefinition;
+}
+
+interface OutputParameterDefinition {
+  key: string;
+  name: string;
+  description?: string;
+  type: 'string';
+  validation?: ValidationDefinition;
+}
+
+interface OperationDefinition {
+  handler: (context: ActionContext) => Promise<OutputObject>;
+}
+
+interface ValidationDefinition {
+  required?: boolean;
+}
+*/
+
 const actionDefinition: ActionDefinition = {
   key: 'askCodaTable',
   name: 'Ask Coda Table',
